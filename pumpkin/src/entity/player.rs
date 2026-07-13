@@ -1810,6 +1810,7 @@ impl Player {
     }
 
     /// Spawn a particle that carries protocol-specific data (e.g. vibration destination).
+    #[allow(clippy::too_many_arguments)]
     pub fn spawn_particle_with_data(
         &self,
         position: Vector3<f64>,

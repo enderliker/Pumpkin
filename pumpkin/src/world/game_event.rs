@@ -65,7 +65,7 @@ impl VibrationSource {
 
 /// Comparator / frequency output for a game event (1–15).
 #[must_use]
-pub fn game_event_frequency(event: &GameEvent) -> u8 {
+pub const fn game_event_frequency(event: &GameEvent) -> u8 {
     match event {
         GameEvent::Step
         | GameEvent::Swim
@@ -122,7 +122,7 @@ pub fn game_event_frequency(event: &GameEvent) -> u8 {
 
 /// Events suppressed while a player is sneaking (tag `ignore_vibrations_sneaking`).
 #[must_use]
-pub fn ignored_when_sneaking(event: &GameEvent) -> bool {
+pub const fn ignored_when_sneaking(event: &GameEvent) -> bool {
     matches!(
         event,
         GameEvent::HitGround
@@ -141,7 +141,7 @@ pub fn redstone_strength(distance: f64, range: f64) -> u8 {
         return 1;
     }
     let v = 15.0 - ((15.0 / range) * distance).floor();
-    v.max(1.0).min(15.0) as u8
+    v.clamp(1.0, 15.0) as u8
 }
 
 /// Euclidean distance between a position and a block center.
@@ -205,9 +205,9 @@ pub fn source_dampens_vibrations(block: &Block) -> bool {
 /// Encode protocol data for `minecraft:vibration` (block destination).
 ///
 /// Layout (Java Edition protocol):
-/// - VarInt position source type (`0` = block)
+/// - `VarInt` position source type (`0` = block)
 /// - Position destination (packed `i64`)
-/// - VarInt arrival ticks
+/// - `VarInt` arrival ticks
 #[must_use]
 pub fn encode_vibration_particle_data(destination: BlockPos, arrival_ticks: i32) -> Vec<u8> {
     let mut buf = Vec::with_capacity(16);
@@ -234,7 +234,7 @@ pub fn spawn_vibration_particle(world: &World, source: Vector3<f64>, destination
     );
 }
 
-fn resonate_event(frequency: u8) -> Option<GameEvent> {
+const fn resonate_event(frequency: u8) -> Option<GameEvent> {
     match frequency {
         1 => Some(GameEvent::Resonate1),
         2 => Some(GameEvent::Resonate2),

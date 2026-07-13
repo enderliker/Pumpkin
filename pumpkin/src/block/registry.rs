@@ -642,8 +642,8 @@ impl BlockRegistry {
             };
             world
                 .emit_game_event(final_block_pos.to_centered_f64(), GameEvent::BlockPlace, source)
-                .await;
-        }
+                .await
+        };
 
         Ok(Some((final_block_pos, new_state)))
     }

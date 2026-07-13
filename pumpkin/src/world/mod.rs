@@ -737,6 +737,7 @@ impl World {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn spawn_particle_with_data(
         &self,
         position: Vector3<f64>,
@@ -4538,19 +4539,16 @@ impl World {
             {
                 use crate::world::game_event::VibrationSource;
                 use pumpkin_data::game_event::GameEvent;
-                let source = match &cause {
-                    Some(player) => {
-                        if player.get_entity().is_sneaking() {
-                            VibrationSource::PLAYER_SNEAKING
-                        } else {
-                            VibrationSource::PLAYER
-                        }
+                let source = cause.as_ref().map_or(VibrationSource::NONE, |player| {
+                    if player.get_entity().is_sneaking() {
+                        VibrationSource::PLAYER_SNEAKING
+                    } else {
+                        VibrationSource::PLAYER
                     }
-                    None => VibrationSource::NONE,
-                };
+                });
                 self.emit_game_event(position.to_centered_f64(), GameEvent::BlockDestroy, source)
-                    .await;
-            }
+                    .await
+            };
 
             // Close container screens for any players viewing this block
             self.close_container_screens_at(position).await;
