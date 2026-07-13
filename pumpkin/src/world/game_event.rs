@@ -9,9 +9,12 @@ use pumpkin_data::block_properties::{
     SculkSensorPhase,
 };
 use pumpkin_data::game_event::GameEvent;
+use pumpkin_data::particle::Particle;
 use pumpkin_data::sound::{Sound, SoundCategory};
 use pumpkin_data::tag::{self, Taggable};
 use pumpkin_data::{Block, BlockDirection, BlockId, HorizontalFacingExt};
+use pumpkin_protocol::VarInt;
+use pumpkin_protocol::ser::NetworkWriteExt;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector3::Vector3;
 
@@ -141,14 +144,13 @@ pub fn redstone_strength(distance: f64, range: f64) -> u8 {
     v.max(1.0).min(15.0) as u8
 }
 
-/// Euclidean distance between block centers.
+/// Euclidean distance between a position and a block center.
 #[must_use]
-pub fn center_distance(a: BlockPos, b: BlockPos) -> f64 {
-    let ac = a.to_centered_f64();
-    let bc = b.to_centered_f64();
-    let dx = ac.x - bc.x;
-    let dy = ac.y - bc.y;
-    let dz = ac.z - bc.z;
+pub fn center_distance(pos: Vector3<f64>, block: BlockPos) -> f64 {
+    let bc = block.to_centered_f64();
+    let dx = pos.x - bc.x;
+    let dy = pos.y - bc.y;
+    let dz = pos.z - bc.z;
     (dx * dx + dy * dy + dz * dz).sqrt()
 }
 
@@ -200,6 +202,38 @@ pub fn source_dampens_vibrations(block: &Block) -> bool {
     block.has_tag(&tag::Block::MINECRAFT_DAMPENS_VIBRATIONS)
 }
 
+/// Encode protocol data for `minecraft:vibration` (block destination).
+///
+/// Layout (Java Edition protocol):
+/// - VarInt position source type (`0` = block)
+/// - Position destination (packed `i64`)
+/// - VarInt arrival ticks
+#[must_use]
+pub fn encode_vibration_particle_data(destination: BlockPos, arrival_ticks: i32) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(16);
+    // 0 = minecraft:block position source
+    let _ = buf.write_var_int(&VarInt(0));
+    let _ = buf.write_block_pos(&destination);
+    let _ = buf.write_var_int(&VarInt(arrival_ticks.max(0)));
+    buf
+}
+
+/// Spawn the cyan vibration wave particle from `source` toward `destination`.
+pub fn spawn_vibration_particle(world: &World, source: Vector3<f64>, destination: BlockPos, ticks: u32) {
+    let data = encode_vibration_particle_data(destination, ticks as i32);
+    // Particle origin = event source (exact pos); travels to the sensor.
+    world.spawn_particle_with_data(
+        source,
+        Vector3::new(0.0, 0.0, 0.0),
+        0.0,
+        1,
+        Particle::Vibration,
+        &data,
+        true,
+        true,
+    );
+}
+
 fn resonate_event(frequency: u8) -> Option<GameEvent> {
     match frequency {
         1 => Some(GameEvent::Resonate1),
@@ -225,7 +259,7 @@ impl World {
     /// Emit a game event (vibration) at `pos` and notify nearby sculk sensors.
     pub async fn emit_game_event(
         self: &Arc<Self>,
-        pos: BlockPos,
+        pos: Vector3<f64>,
         event: GameEvent,
         source: VibrationSource,
     ) {
@@ -242,8 +276,14 @@ impl World {
             return;
         }
 
+        let center_block = BlockPos(Vector3::new(
+            pos.x.floor() as i32,
+            pos.y.floor() as i32,
+            pos.z.floor() as i32,
+        ));
+
         // Wool/carpet at the source for place/destroy/step-like events.
-        let source_block = self.get_block(&pos);
+        let source_block = self.get_block(&center_block);
         if source_dampens_vibrations(source_block)
             && matches!(
                 event,
@@ -266,9 +306,9 @@ impl World {
             for dy in -range_i..=range_i {
                 for dz in -range_i..=range_i {
                     let sensor_pos = BlockPos(Vector3::new(
-                        pos.0.x + dx,
-                        pos.0.y + dy,
-                        pos.0.z + dz,
+                        center_block.0.x + dx,
+                        center_block.0.y + dy,
+                        center_block.0.z + dz,
                     ));
                     let dist = center_distance(pos, sensor_pos);
                     if dist > CALIBRATED_SCULK_SENSOR_RANGE {
@@ -293,7 +333,7 @@ impl World {
         }
 
         for (sensor_pos, calibrated) in candidates {
-            if is_vibration_occluded(self, pos, sensor_pos) {
+            if is_vibration_occluded(self, center_block, sensor_pos) {
                 continue;
             }
             self.try_sensor_accept_vibration(
@@ -313,7 +353,7 @@ impl World {
         self: &Arc<Self>,
         sensor_pos: BlockPos,
         calibrated: bool,
-        source_pos: BlockPos,
+        source_pos: Vector3<f64>,
         frequency: u8,
         from_player: bool,
     ) {
@@ -358,31 +398,36 @@ impl World {
         }
 
         // Prefer block entity queue so travel delay is handled on tick.
-        if let Some(be) = self.get_block_entity(&sensor_pos) {
+        let delay_ticks = distance.ceil().max(1.0) as u32;
+        let accepted = if let Some(be) = self.get_block_entity(&sensor_pos) {
             if calibrated {
                 if let Some(sensor) = be
                     .as_any()
                     .downcast_ref::<CalibratedSculkSensorBlockEntity>()
                 {
-                    if !sensor
+                    sensor
                         .try_queue_vibration(source_pos, frequency, distance, from_player)
                         .await
-                    {
-                        return;
-                    }
+                } else {
+                    false
                 }
             } else if let Some(sensor) = be.as_any().downcast_ref::<SculkSensorBlockEntity>() {
-                if !sensor
+                sensor
                     .try_queue_vibration(source_pos, frequency, distance, from_player)
                     .await
-                {
-                    return;
-                }
+            } else {
+                false
             }
         } else {
             // No BE yet: activate immediately (fallback).
             let power = redstone_strength(distance, range);
             SculkSensorBlock::trigger(self, &sensor_pos, block, power, frequency).await;
+            true
+        };
+
+        if accepted {
+            // Vanilla cyan wave from the event origin toward the sensor.
+            spawn_vibration_particle(self, source_pos, sensor_pos, delay_ticks);
         }
     }
 

@@ -31,7 +31,7 @@ fn read_pending(nbt: &NbtCompound) -> Option<PendingVibration> {
         .unwrap_or(1)
         .clamp(1, 15) as u8;
     Some(PendingVibration {
-        source: BlockPos(Vector3::new(x.floor() as i32, y.floor() as i32, z.floor() as i32)),
+        source: Vector3::new(x, y, z),
         frequency,
         distance,
         delay_ticks: delay as u32,
@@ -79,13 +79,12 @@ impl BlockEntity for CalibratedSculkSensorBlockEntity {
                 let mut event = NbtCompound::new();
                 event.put_float("distance", pending.distance as f32);
                 event.put_int("frequency", i32::from(pending.frequency));
-                let c = pending.source.to_centered_f64();
                 event.put_list(
                     "pos",
                     vec![
-                        NbtTag::Double(c.x),
-                        NbtTag::Double(c.y),
-                        NbtTag::Double(c.z),
+                        NbtTag::Double(pending.source.x),
+                        NbtTag::Double(pending.source.y),
+                        NbtTag::Double(pending.source.z),
                     ],
                 );
                 listener.put_compound("event", event);
@@ -143,7 +142,7 @@ impl CalibratedSculkSensorBlockEntity {
 
     pub async fn try_queue_vibration(
         &self,
-        source: BlockPos,
+        source: Vector3<f64>,
         frequency: u8,
         distance: f64,
         from_player: bool,

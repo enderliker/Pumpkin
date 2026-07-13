@@ -641,7 +641,7 @@ impl BlockRegistry {
                 VibrationSource::PLAYER
             };
             world
-                .emit_game_event(final_block_pos, GameEvent::BlockPlace, source)
+                .emit_game_event(final_block_pos.to_centered_f64(), GameEvent::BlockPlace, source)
                 .await;
         }
 

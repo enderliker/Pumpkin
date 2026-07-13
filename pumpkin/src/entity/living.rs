@@ -2554,7 +2554,7 @@ impl EntityBase for LivingEntity {
                         VibrationSource::NONE
                     };
                     world
-                        .emit_game_event(supporting, GameEvent::Step, source)
+                        .emit_game_event(self.entity.pos.load(), GameEvent::Step, source)
                         .await;
                 }
             }

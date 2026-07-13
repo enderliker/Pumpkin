@@ -737,6 +737,31 @@ impl World {
         }
     }
 
+    pub fn spawn_particle_with_data(
+        &self,
+        position: Vector3<f64>,
+        offset: Vector3<f32>,
+        max_speed: f32,
+        particle_count: i32,
+        particle: Particle,
+        data: &[u8],
+        force_spawn: bool,
+        important: bool,
+    ) {
+        for player in self.players.load().iter() {
+            player.spawn_particle_with_data(
+                position,
+                offset,
+                max_speed,
+                particle_count,
+                particle,
+                data,
+                force_spawn,
+                important,
+            );
+        }
+    }
+
     pub fn play_sound(&self, sound: Sound, category: SoundCategory, position: &Vector3<f64>) {
         self.play_sound_raw(sound as u16, category, position, 1.0, 1.0);
     }
@@ -4523,7 +4548,7 @@ impl World {
                     }
                     None => VibrationSource::NONE,
                 };
-                self.emit_game_event(*position, GameEvent::BlockDestroy, source)
+                self.emit_game_event(position.to_centered_f64(), GameEvent::BlockDestroy, source)
                     .await;
             }
 
