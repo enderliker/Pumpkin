@@ -632,15 +632,17 @@ impl BlockRegistry {
         .await;
 
         // Vibration: block place
-        use crate::world::game_event::VibrationSource;
-        use pumpkin_data::game_event::GameEvent;
         let source = if player.get_entity().is_sneaking() {
-            VibrationSource::PLAYER_SNEAKING
+            crate::world::game_event::VibrationSource::PLAYER_SNEAKING
         } else {
-            VibrationSource::PLAYER
+            crate::world::game_event::VibrationSource::PLAYER
         };
         world
-            .emit_game_event(final_block_pos.to_centered_f64(), GameEvent::BlockPlace, source)
+            .emit_game_event(
+                final_block_pos.to_centered_f64(),
+                pumpkin_data::game_event::GameEvent::BlockPlace,
+                source,
+            )
             .await;
 
         Ok(Some((final_block_pos, new_state)))

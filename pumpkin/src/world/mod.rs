@@ -4536,17 +4536,22 @@ impl World {
             let broken_state_id = self.set_block_state(position, new_state_id, flags).await;
 
             // Vibration: block destroy (player or other)
-            use crate::world::game_event::VibrationSource;
-            use pumpkin_data::game_event::GameEvent;
-            let source = cause.as_ref().map_or(VibrationSource::NONE, |player| {
-                if player.get_entity().is_sneaking() {
-                    VibrationSource::PLAYER_SNEAKING
-                } else {
-                    VibrationSource::PLAYER
-                }
-            });
-            self.emit_game_event(position.to_centered_f64(), GameEvent::BlockDestroy, source)
-                .await;
+            let source = cause.as_ref().map_or(
+                crate::world::game_event::VibrationSource::NONE,
+                |player| {
+                    if player.get_entity().is_sneaking() {
+                        crate::world::game_event::VibrationSource::PLAYER_SNEAKING
+                    } else {
+                        crate::world::game_event::VibrationSource::PLAYER
+                    }
+                },
+            );
+            self.emit_game_event(
+                position.to_centered_f64(),
+                pumpkin_data::game_event::GameEvent::BlockDestroy,
+                source,
+            )
+            .await;
 
             // Close container screens for any players viewing this block
             self.close_container_screens_at(position).await;
