@@ -148,6 +148,7 @@ pub mod bossbar;
 pub mod custom_bossbar;
 pub mod dragon_fight;
 pub mod end_podium;
+pub mod game_event;
 pub mod natural_spawner;
 pub mod scoreboard;
 pub mod weather;
@@ -4507,6 +4508,24 @@ impl World {
             };
 
             let broken_state_id = self.set_block_state(position, new_state_id, flags).await;
+
+            // Vibration: block destroy (player or other)
+            {
+                use crate::world::game_event::VibrationSource;
+                use pumpkin_data::game_event::GameEvent;
+                let source = match &cause {
+                    Some(player) => {
+                        if player.get_entity().is_sneaking() {
+                            VibrationSource::PLAYER_SNEAKING
+                        } else {
+                            VibrationSource::PLAYER
+                        }
+                    }
+                    None => VibrationSource::NONE,
+                };
+                self.emit_game_event(*position, GameEvent::BlockDestroy, source)
+                    .await;
+            }
 
             // Close container screens for any players viewing this block
             self.close_container_screens_at(position).await;

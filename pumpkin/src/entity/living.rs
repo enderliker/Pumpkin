@@ -2535,6 +2535,28 @@ impl EntityBase for LivingEntity {
                         )
                         .await;
                 }
+
+                // Sculk vibration: step while moving on ground (rate-limited).
+                let on_ground = self.entity.on_ground.load(Ordering::Relaxed);
+                let vel = self.entity.velocity.load();
+                let moving = vel.x * vel.x + vel.z * vel.z > 0.003;
+                let age = self.entity.age.load(Ordering::Relaxed);
+                if on_ground && moving && age.rem_euclid(6) == 0 {
+                    use crate::world::game_event::VibrationSource;
+                    use pumpkin_data::game_event::GameEvent;
+                    let source = if caller.get_player().is_some() {
+                        if self.entity.is_sneaking() {
+                            VibrationSource::PLAYER_SNEAKING
+                        } else {
+                            VibrationSource::PLAYER
+                        }
+                    } else {
+                        VibrationSource::NONE
+                    };
+                    world
+                        .emit_game_event(supporting, GameEvent::Step, source)
+                        .await;
+                }
             }
 
             self.tick_effects().await;
