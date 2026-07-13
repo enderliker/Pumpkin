@@ -13,7 +13,7 @@ use pumpkin_data::particle::Particle;
 use pumpkin_data::sound::{Sound, SoundCategory};
 use pumpkin_data::tag::{self, Taggable};
 use pumpkin_data::{Block, BlockDirection, BlockId, HorizontalFacingExt};
-use pumpkin_protocol::VarInt;
+use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::ser::NetworkWriteExt;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector3::Vector3;
@@ -470,7 +470,7 @@ impl World {
                 {
                     // Re-resolve each iteration (GameEvent is not Copy).
                     if let Some(event) = resonate_event(frequency) {
-                        self.emit_game_event(neighbor, event, VibrationSource::NONE)
+                        self.emit_game_event(neighbor.to_centered_f64(), event, VibrationSource::NONE)
                             .await;
                     }
                 }
