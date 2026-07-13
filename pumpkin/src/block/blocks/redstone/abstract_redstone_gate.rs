@@ -55,7 +55,7 @@ pub trait RedstoneGateBlock<T: Send + Sync + BlockProperties + RedstoneGateBlock
     {
         Box::pin(async move {
             let props = T::from_state_id(args.state.id, args.block);
-            if props.is_powered() && props.get_facing().to_block_direction() == args.direction {
+            if props.is_powered() && props.get_facing().to_block_direction() == args.direction.opposite() {
                 self.get_output_level(args.world, *args.position).await
             } else {
                 0

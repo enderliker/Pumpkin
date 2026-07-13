@@ -51,6 +51,9 @@ impl BlockBehaviour for RedstoneWireBlock {
         args: GetStateForNeighborUpdateArgs<'a>,
     ) -> BlockFuture<'a, BlockStateId> {
         Box::pin(async move {
+            if !can_place_at(args.world, args.position) {
+                return BlockStateId::AIR;
+            }
             let mut wire = RedstoneWireProperties::from_state_id(args.state_id, args.block);
             let old_state = wire;
             let new_side: WireConnection;
@@ -201,6 +204,7 @@ impl BlockBehaviour for RedstoneWireBlock {
         Box::pin(async move {
             let wire = RedstoneWireProperties::from_state_id(args.state.id, args.block);
             if args.direction == BlockDirection::Up
+                || is_dot(wire)
                 || wire.is_side_connected(args.direction.opposite().to_horizontal_facing().unwrap())
             {
                 wire.power
